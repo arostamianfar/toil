@@ -198,6 +198,9 @@ sdbFullPolicy = dict(Version="2012-10-17", Statement=[
 iamFullPolicy = dict(Version="2012-10-17", Statement=[
     dict(Effect="Allow", Resource="*", Action="iam:*")])
 
+fullPolicy = dict(Version="2012-10-17", Statement=[
+    dict(Effect="Allow", Resource="*", Action="*")])
+
 
 def checkValidNodeTypes(provisioner, nodeTypes):
     """
