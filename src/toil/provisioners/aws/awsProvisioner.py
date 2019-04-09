@@ -567,7 +567,7 @@ class AWSProvisioner(AbstractProvisioner):
         bdtKeys = [''] + ['/dev/xvd{}'.format(c) for c in string.ascii_lowercase[1:]]
         bdm = BlockDeviceMapping()
         # Change root volume size to allow for bigger Docker instances
-        root_vol = BlockDeviceType(delete_on_termination=True)
+        root_vol = BlockDeviceType(delete_on_termination=True, volume_type='gp2')
         root_vol.size = rootVolSize
         bdm["/dev/xvda"] = root_vol
         # The first disk is already attached for us so start with 2nd.
