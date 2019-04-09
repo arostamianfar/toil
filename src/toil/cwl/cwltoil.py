@@ -573,6 +573,7 @@ class CWLJob(Job):
             self.step_inputs, cwljob,
             self.runtime_context.make_fs_access(""))
         immobile_cwljob_dict = copy.deepcopy(cwljob)
+        logging.error('CWL Job: %s' % json.dumps(immobile_cwljob_dict, indent=4))
         for inp_id in immobile_cwljob_dict.keys():
             found = False
             for field in self.cwltool.inputs_record_schema['fields']:
@@ -1179,7 +1180,7 @@ def main(args=None, stdout=sys.stdout):
     # Problem: we want to keep our job store somewhere auto-generated based on
     # our options, unless overridden by... an option. So we will need to parse
     # options twice, because we need to feed the parser the job store.
-    
+
     # Propose a local workdir, probably under /tmp.
     # mkdtemp actually creates the directory, but
     # toil requires that the directory not exist,
