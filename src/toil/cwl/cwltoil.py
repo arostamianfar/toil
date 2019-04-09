@@ -770,6 +770,7 @@ class CWLJob(Job):
             return self.conditional.skipped_outputs()
 
         immobile_cwljob_dict = copy.deepcopy(cwljob)
+        logging.error('CWL Job: %s' % json.dumps(immobile_cwljob_dict, indent=4))
         for inp_id in immobile_cwljob_dict.keys():
             found = False
             for field in self.cwltool.inputs_record_schema['fields']:
