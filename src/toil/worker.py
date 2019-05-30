@@ -29,11 +29,15 @@ import signal
 import socket
 import logging
 import shutil
-from threading import Thread
 
 from toil.lib.expando import MagicExpando
 from toil.common import Toil, safeUnpickleFromStream
 from toil.fileStores.abstractFileStore import AbstractFileStore
+try:
+    from toil.cwl.cwltoil import CWL_INTERNAL_JOBS
+except ImportError:
+    # CWL extra not installed
+    CWL_INTERNAL_JOBS = ()
 from toil import logProcessContext
 from toil.job import Job
 from toil.lib.bioio import setLogLevel
@@ -489,7 +493,7 @@ def workerScript(jobStore, config, jobName, jobStoreID, redirectOutputToLogFile=
                 w.write(f.read().encode('utf-8')) # TODO load file using a buffer
         jobStore.update(jobGraph)
 
-    elif debugging and redirectOutputToLogFile:  # write log messages
+    elif (debugging or (config.writeLogsFromAllJobs and not jobName.startswith(CWL_INTERNAL_JOBS))) and redirectOutputToLogFile:  # write log messages
         with open(tempWorkerLogPath, 'r') as logFile:
             if os.path.getsize(tempWorkerLogPath) > logFileByteReportLimit != 0:
                 if logFileByteReportLimit > 0:

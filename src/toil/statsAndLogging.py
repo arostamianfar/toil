@@ -77,6 +77,8 @@ class StatsAndLogging( object ):
 
         assert not (config.writeLogs and config.writeLogsGzip), \
             "Cannot use both --writeLogs and --writeLogsGzip at the same time."
+        assert (not config.writeLogsFromAllJobs or config.writeLogs or config.writeLogsGzip), \
+            "To enable --writeLogsFromAllJobs, either --writeLogs or --writeLogsGzip must be set."
 
         if config.writeLogs:
             path = config.writeLogs
