@@ -127,7 +127,7 @@ class Config(object):
         self.sseKey = None
         self.cseKey = None
         self.servicePollingInterval = 60
-        self.useAsync = True
+        self.useAsync = False
         self.forceDockerAppliance = False
         self.runCwlInternalJobsOnWorkers = False
 
