@@ -108,7 +108,7 @@ class CachingFileStore(AbstractFileStore):
         super(CachingFileStore, self).__init__(jobStore, jobGraph, localTempDir, inputBlockFn)
         
         # Variables related to asynchronous writes.
-        self.workerNumber = 2
+        self.workerNumber = 2 if self.jobStore.config.useAsync else 0
         self.queue = Queue()
         self.updateSemaphore = Semaphore()
         self.workers = [Thread(target=self.asyncWrite) for i in range(self.workerNumber)]
