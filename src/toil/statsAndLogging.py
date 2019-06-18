@@ -57,13 +57,17 @@ class StatsAndLogging( object ):
             method('%s    %s', jobStoreID, line.rstrip('\n'))
 
     @classmethod
-    def writeLogFiles(cls, jobNames, jobLogList, config):
-        def createName(logPath, jobName, logExtension):
-            logName = jobName.replace('-', '--')
+    def writeLogFiles(cls, jobNames, jobLogList, config, failed=False):
+        def createName(logPath, jobName, logExtension, failed=False):
+            logName = jobName.replace('file:///', '').replace('-', '--')
             logName = logName.replace('/', '-')
             logName = logName.replace(' ', '_')
             logName = logName.replace("'", '')
             logName = logName.replace('"', '')
+            if len(logName) > 200:
+                logName = logName[:200] + '--dropped--'
+            logName = 'failed_' + logName if failed else logName
+
             counter = 0
             while True:
                 suffix = str(counter).zfill(3) + logExtension
@@ -91,7 +95,7 @@ class StatsAndLogging( object ):
             # we don't have anywhere to write the logs, return now
             return
 
-        fullName = createName(path, mainFileName, extension)
+        fullName = createName(path, mainFileName, extension, failed)
         with writeFn(fullName, 'wb') as f:
             for l in jobLogList:
                 try:
@@ -104,7 +108,7 @@ class StatsAndLogging( object ):
         for alternateName in jobNames[1:]:
             # There are chained jobs in this output - indicate this with a symlink
             # of the job's name to this file
-            name = createName(path, alternateName, extension)
+            name = createName(path, alternateName, extension, failed)
             os.symlink(os.path.relpath(fullName, path), name)
 
     @classmethod
