@@ -17,6 +17,7 @@ from __future__ import division
 
 from future import standard_library
 standard_library.install_aliases()
+import copy
 from builtins import str
 from builtins import map
 from builtins import object
@@ -61,6 +62,7 @@ class BinPackedFit(object):
         self.nodeShapes = sorted(nodeShapes)
         self.targetTime = targetTime
         self.nodeReservations = {nodeShape:[] for nodeShape in nodeShapes}
+        self.nodeDiskSizeOverrides = {}
 
     def binPack(self, jobShapes):
         """Pack a list of jobShapes into the fewest nodes reasonable. Can be run multiple times."""
@@ -86,6 +88,13 @@ class BinPackedFit(object):
                 # This node shape is the first that fits this jobShape
                 chosenNodeShape = nodeShape
                 break
+            elif nodeShape.disk < jobShape.disk:
+                nodeShapeWithLargerDisk = copy.deepcopy(nodeShape)
+                nodeShapeWithLargerDisk.disk = int(jobShape.disk * 1.2)
+                if NodeReservation(nodeShapeWithLargerDisk).fits(jobShape):
+                    self.nodeDiskSizeOverrides[nodeShape] = nodeShapeWithLargerDisk.disk
+                    chosenNodeShape = nodeShape
+                    break
 
         if chosenNodeShape is None:
             logger.warning("Couldn't fit job with requirements %r into any nodes in the nodeTypes "
@@ -278,7 +287,7 @@ def split(nodeShape, jobShape, wallTime):
 def binPacking(nodeShapes, jobShapes, goalTime):
     bpf = BinPackedFit(nodeShapes, goalTime)
     bpf.binPack(jobShapes)
-    return bpf.getRequiredNodes()
+    return bpf.getRequiredNodes(), bpf.nodeDiskSizeOverrides
 
 class ClusterScaler(object):
     def __init__(self, provisioner, leader, config):
@@ -310,6 +319,7 @@ class ClusterScaler(object):
 
         self.nodeTypes = provisioner.nodeTypes
         self.nodeShapes = provisioner.nodeShapes
+        self.nodeTypeToDiskSizeOverride = {}
 
         self.nodeShapeToType = dict(zip(self.nodeShapes, self.nodeTypes))
 
@@ -475,9 +485,12 @@ class ClusterScaler(object):
         Given the resource requirements of queued jobs and the current size of the cluster, returns
         a dict mapping from nodeShape to the number of nodes we want in the cluster right now.
         """
-        nodesToRunQueuedJobs = binPacking(jobShapes=queuedJobShapes,
-                                          nodeShapes=self.nodeShapes,
-                                          goalTime=self.targetTime)
+        nodesToRunQueuedJobs, nodeDiskSizeOverrides = binPacking(jobShapes=queuedJobShapes,
+                                                                 nodeShapes=self.nodeShapes,
+                                                                 goalTime=self.targetTime)
+        for nodeShape, diskSize in nodeDiskSizeOverrides.items():
+            nodeType = self.nodeShapeToType[nodeShape]
+            self.nodeTypeToDiskSizeOverride[nodeType] = max(diskSize, self.nodeTypeToDiskSizeOverride.get(nodeType, 0))
         estimatedNodeCounts = {}
         for nodeShape in self.nodeShapes:
             nodeType = self.nodeShapeToType[nodeShape]
@@ -630,7 +643,9 @@ class ClusterScaler(object):
         return numNodes
 
     def _addNodes(self, nodeType, numNodes, preemptable):
-        return self.provisioner.addNodes(nodeType=nodeType, numNodes=numNodes, preemptable=preemptable)
+        diskSizeOverride = self.nodeTypeToDiskSizeOverride.get(nodeType)
+        return self.provisioner.addNodes(nodeType=nodeType, numNodes=numNodes, preemptable=preemptable,
+                                         diskSizeOverride=int(diskSizeOverride/(2**30)) if diskSizeOverride else None)
 
     def _removeNodes(self, nodeToNodeInfo, nodeType, numNodes, preemptable=False, force=False):
         # If the batch system is scalable, we can use the number of currently running workers on
@@ -858,6 +873,7 @@ class ScalerThread(ExceptionalThread):
         while not self.stop:
             with throttle(self.scaler.config.scaleInterval):
                 try:
+                    self.scaler.nodeTypeToDiskSizeOverride = {}
                     queuedJobs = self.scaler.leader.getJobs()
                     queuedJobShapes = [
                         Shape(wallTime=self.scaler.getAverageRuntime(

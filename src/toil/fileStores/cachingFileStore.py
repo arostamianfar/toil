@@ -829,7 +829,8 @@ class CachingFileStore(AbstractFileStore):
                          totalEvicted,
                          (cacheInfo.total - (cacheInfo.cached + cacheInfo.sigmaJob - newJobReqs)))
             if not cacheInfo.isBalanced():
-                raise CacheUnbalancedError()
+                logger.critical('Continuing the job at the risk of not having enough disk space.')
+                # raise CacheUnbalancedError()
 
     def removeSingleCachedFile(self, fileStoreID):
         """

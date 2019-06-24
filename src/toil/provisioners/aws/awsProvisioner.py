@@ -189,11 +189,12 @@ class AWSProvisioner(AbstractProvisioner):
             # This is an EBS-backed instance. We will use the root
             # volume, so add the amount of EBS storage requested for
             # the root volume
-            disk = self._nodeStorage * 2 ** 30
+            # Underestimate by 20% to account for OS and other overheads.
+            disk = int(self._nodeStorage * 0.80) * 2 ** 30
 
         #Underestimate memory by 20% to prevent autoscaler from disagreeing with
         #mesos about whether a job can run on a particular node type
-        memory = (instanceType.memory * 0.80) * 2** 30
+        memory = int(instanceType.memory * 0.80) * 2 ** 30
         return Shape(wallTime=60 * 60,
                      memory=memory,
                      cores=instanceType.cores,
@@ -270,7 +271,7 @@ class AWSProvisioner(AbstractProvisioner):
         instanceIDs = [x.name for x in nodes]
         self._terminateIDs(instanceIDs)
 
-    def addNodes(self, nodeType, numNodes, preemptable, spotBid=None):
+    def addNodes(self, nodeType, numNodes, preemptable, spotBid=None, diskSizeOverride=None):
         assert self._leaderPrivateIP
         if preemptable and not spotBid:
             if self._spotBidsMap and nodeType in self._spotBidsMap:
@@ -278,7 +279,7 @@ class AWSProvisioner(AbstractProvisioner):
             else:
                 raise RuntimeError("No spot bid given for a preemptable node request.")
         instanceType = E2Instances[nodeType]
-        bdm = self._getBlockDeviceMapping(instanceType, rootVolSize=self._nodeStorage)
+        bdm = self._getBlockDeviceMapping(instanceType, rootVolSize=diskSizeOverride or self._nodeStorage)
 
         keyPath = self._sseKey if self._sseKey else None
         userData =  self._getCloudConfigUserData('worker', self._masterPublicKey, keyPath, preemptable)
