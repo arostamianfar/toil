@@ -34,6 +34,8 @@ dependencies = ' '.join(['libffi-dev',  # For client side encryption for 'azure'
                          'mesos=1.0.1-2.0.94.ubuntu1604',
                          "nodejs",  # CWL support for javascript expressions
                          'rsync',
+                         'less',
+                         'vim',
                          'screen'])
 
 
@@ -79,6 +81,8 @@ print(heredoc('''
     ADD waitForKey.sh /usr/bin/waitForKey.sh
 
     ADD customDockerInit.sh /usr/bin/customDockerInit.sh
+    
+    ADD docker-credential-ecr-login /usr/bin/docker-credential-ecr-login
 
     RUN chmod 777 /usr/bin/waitForKey.sh && chmod 777 /usr/bin/customDockerInit.sh
     
