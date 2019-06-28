@@ -293,7 +293,7 @@ class AWSProvisioner(AbstractProvisioner):
                   'subnet_id': self._subnetID}
 
         instancesLaunched = []
-
+        numNodes = min(25, numNodes)  # Cap max number of nodes that can be launched at the same time to 25.
         for attempt in retry(predicate=awsRetryPredicate):
             with attempt:
                 # after we start launching instances we want to ensure the full setup is done
