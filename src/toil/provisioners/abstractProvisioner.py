@@ -172,7 +172,7 @@ class AbstractProvisioner(with_metaclass(ABCMeta, object)):
         raise NotImplementedError
 
     @abstractmethod
-    def addNodes(self, nodeType, numNodes, preemptable, spotBid=None, diskSizeOverride=None):
+    def addNodes(self, nodeType, numNodes, preemptable, spotBid=None, diskSizeOverride=None, zoneSubnetOverride=None):
         """
         Used to add worker nodes to the cluster
 
@@ -180,6 +180,7 @@ class AbstractProvisioner(with_metaclass(ABCMeta, object)):
         :param preemptable: whether or not the nodes will be preemptable
         :param spotBid: The bid for preemptable nodes if applicable (this can be set in config, also).
         :param diskSizeOverride: If specified, the node will have the specified disk size.
+        :param zoneSubnetOverride: If specified, the (zone, vpcSubnet) tuple will override the default config.
         :return: number of nodes successfully added
         """
         raise NotImplementedError

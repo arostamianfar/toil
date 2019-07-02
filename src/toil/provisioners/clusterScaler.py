@@ -24,6 +24,7 @@ from builtins import object
 import json
 import logging
 import os
+import random
 import time
 from collections import defaultdict
 
@@ -373,6 +374,8 @@ class ClusterScaler(object):
 
         if not sum(config.maxNodes) > 0:
             raise RuntimeError('Not configured to create nodes of any type.')
+
+        self.workerZonesAndSubnets = config.workerZonesAndSubnets
             
     def _round(self, number):
         """
@@ -644,8 +647,10 @@ class ClusterScaler(object):
 
     def _addNodes(self, nodeType, numNodes, preemptable):
         diskSizeOverride = self.nodeTypeToDiskSizeOverride.get(nodeType)
+        zoneSubnetOverride = random.choice(self.workerZonesAndSubnets).split(':') if self.workerZonesAndSubnets else None
         return self.provisioner.addNodes(nodeType=nodeType, numNodes=numNodes, preemptable=preemptable,
-                                         diskSizeOverride=int(diskSizeOverride/(2**30)) if diskSizeOverride else None)
+                                         diskSizeOverride=int(diskSizeOverride/(2**30)) if diskSizeOverride else None,
+                                         zoneSubnetOverride=zoneSubnetOverride)
 
     def _removeNodes(self, nodeToNodeInfo, nodeType, numNodes, preemptable=False, force=False):
         # If the batch system is scalable, we can use the number of currently running workers on
