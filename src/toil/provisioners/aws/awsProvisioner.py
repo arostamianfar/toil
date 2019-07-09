@@ -584,6 +584,18 @@ class AWSProvisioner(AbstractProvisioner):
                     web.authorize(ip_protocol='tcp', from_port=22, to_port=22, cidr_ip='0.0.0.0/0')
             for attempt in retry(predicate=groupNotFound, timeout=300):
                 with attempt:
+                    # open port 5050 for Mesos dashboard.
+                    web.authorize(ip_protocol='tcp', from_port=5050, to_port=5050, cidr_ip='0.0.0.0/0')
+            for attempt in retry(predicate=groupNotFound, timeout=300):
+                with attempt:
+                    # open port 3000 for Grafana dashboard.
+                    web.authorize(ip_protocol='tcp', from_port=3000, to_port=3000, cidr_ip='0.0.0.0/0')
+            for attempt in retry(predicate=groupNotFound, timeout=300):
+                with attempt:
+                    # open port 9090 for Prometheus dashboard.
+                    web.authorize(ip_protocol='tcp', from_port=9090, to_port=9090, cidr_ip='0.0.0.0/0')
+            for attempt in retry(predicate=groupNotFound, timeout=300):
+                with attempt:
                     # the following authorizes all TCP access within the web security group
                     web.authorize(ip_protocol='tcp', from_port=0, to_port=65535, src_group=web)
             for attempt in retry(predicate=groupNotFound, timeout=300):
