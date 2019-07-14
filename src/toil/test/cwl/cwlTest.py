@@ -45,16 +45,16 @@ class CWLTest(ToilTest):
         os.makedirs(self.outDir)
         self.rootDir = self._projectRootPath()
         self.cwlSpec = os.path.join(self.rootDir, 'src/toil/test/cwl/spec')
-        self.workDir = os.path.join(self.cwlSpec, 'v1.0')
-        # The latest cwl git commit hash from https://github.com/common-workflow-language/common-workflow-language.
+        self.workDir = os.path.join(self.cwlSpec, 'v1.1')
+        # The latest cwl git commit hash from https://github.com/common-workflow-language/v1.1.
         # Update it to get the latest tests.
-        testhash = '1f501e38ff692a408e16b246ac7d64d32f0822c2'
-        url = 'https://github.com/common-workflow-language/common-workflow-language/archive/%s.zip' % testhash
+        testhash = '4feec74019b56dc5c51be905a208ff90797661de'
+        url = 'https://github.com/common-workflow-language/cwl-v1.1/archive/%s.zip' % testhash
         if not os.path.exists(self.cwlSpec):
             urlretrieve(url, 'spec.zip')
             with zipfile.ZipFile('spec.zip', 'r') as z:
                 z.extractall()
-            shutil.move('common-workflow-language-%s' % testhash, self.cwlSpec)
+            shutil.move('cwl-v1.1-%s' % testhash, self.cwlSpec)
             os.remove('spec.zip')
 
     def tearDown(self):
@@ -173,7 +173,7 @@ class CWLTest(ToilTest):
     @pytest.mark.timeout(2400)
     def test_run_conformance(self, batchSystem=None):
         try:
-            cmd = ['cwltest', '--tool', 'toil-cwl-runner', '--test=conformance_test_v1.0.yaml',
+            cmd = ['cwltest', '--tool', 'toil-cwl-runner', '--test=conformance_tests.yaml',
                    '--timeout=2400', '--basedir=' + self.workDir]
             if batchSystem:
                 cmd.extend(["--batchSystem", batchSystem])
