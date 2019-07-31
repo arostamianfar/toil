@@ -131,6 +131,7 @@ class Config(object):
         self.useAsync = False
         self.forceDockerAppliance = False
         self.runCwlInternalJobsOnWorkers = False
+        self.disableChecksumVerification = False
 
         # Debug options
         self.debugWorker = False
@@ -275,6 +276,7 @@ class Config(object):
         setOption("writeLogsGzip")
         setOption("writeLogsFromAllJobs")
         setOption("runCwlInternalJobsOnWorkers")
+        setOption("disableChecksumVerification")
 
         assert not (self.writeLogs and self.writeLogsGzip), \
             "Cannot use both --writeLogs and --writeLogsGzip at the same time."
@@ -594,6 +596,9 @@ def _addOptions(addGroupFn, config):
                 default=False,
                 help='Disables sanity checking the existence of the docker image specified by '
                 'TOIL_APPLIANCE_SELF, which Toil uses to provision mesos for autoscaling.')
+    addOptionFn("--disableChecksumVerification", dest="disableChecksumVerification",
+                default=False, action="store_true",
+                help=("Disables checksum verification on the JobStore."))
     #
     # Debug options
     #
