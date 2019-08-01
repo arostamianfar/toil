@@ -371,7 +371,7 @@ class ClusterScaler(object):
             raise RuntimeError('Not configured to create nodes of any type.')
 
         self.workerZonesAndSubnets = config.workerZonesAndSubnets
-            
+
     def _round(self, number):
         """
         Helper function for rounding-as-taught-in-school (X.5 rounds to X+1 if positive).
