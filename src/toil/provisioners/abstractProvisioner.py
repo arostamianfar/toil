@@ -107,7 +107,7 @@ class AbstractProvisioner(with_metaclass(ABCMeta, object)):
     """
     LEADER_HOME_DIR = '/root/'  # home directory in the Toil appliance on an instance
 
-    def __init__(self, clusterName=None, zone=None, nodeStorage=50):
+    def __init__(self, clusterName=None, zone=None, nodeStorage=50, nodeStorageOverride=None):
         """
         Initialize provisioner.
 
@@ -118,6 +118,10 @@ class AbstractProvisioner(with_metaclass(ABCMeta, object)):
         self.clusterName = clusterName
         self._zone = zone
         self._nodeStorage = nodeStorage
+        self._nodeStorageOverride = {}
+        for override in nodeStorageOverride or []:
+            nodeShape, storageOverride = override.split(':')
+            self._nodeStorageOverride[nodeShape] = int(storageOverride)
         self._leaderPrivateIP = None
 
     def readClusterSettings(self):
