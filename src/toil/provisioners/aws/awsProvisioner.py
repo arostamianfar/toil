@@ -103,8 +103,8 @@ class AWSProvisioner(AbstractProvisioner):
     Implements an AWS provisioner using the boto libraries.
     """
 
-    def __init__(self, clusterName, zone, nodeStorage, sseKey):
-        super(AWSProvisioner, self).__init__(clusterName, zone, nodeStorage)
+    def __init__(self, clusterName, zone, nodeStorage, nodeStorageOverride, sseKey):
+        super(AWSProvisioner, self).__init__(clusterName, zone, nodeStorage, nodeStorageOverride)
         self.cloud = 'aws'
         self._sseKey = sseKey
         if not zone:
@@ -193,11 +193,10 @@ class AWSProvisioner(AbstractProvisioner):
             # This is an EBS-backed instance. We will use the root
             # volume, so add the amount of EBS storage requested for
             # the root volume
-            disk = self._nodeStorage * 2 ** 30
-
+            disk = (self._nodeStorageOverride.get(nodeType) or self._nodeStorage) * 2 ** 30
         #Underestimate memory by 20% to prevent autoscaler from disagreeing with
         #mesos about whether a job can run on a particular node type
-        memory = (instanceType.memory * 0.80) * 2** 30
+        memory = int(instanceType.memory * 0.80) * 2 ** 30
         return Shape(wallTime=60 * 60,
                      memory=memory,
                      cores=instanceType.cores,
@@ -282,7 +281,7 @@ class AWSProvisioner(AbstractProvisioner):
             else:
                 raise RuntimeError("No spot bid given for a preemptable node request.")
         instanceType = E2Instances[nodeType]
-        bdm = self._getBlockDeviceMapping(instanceType, rootVolSize=self._nodeStorage)
+        bdm = self._getBlockDeviceMapping(instanceType, rootVolSize=self._nodeStorageOverride.get(nodeType) or self._nodeStorage)
 
         keyPath = self._sseKey if self._sseKey else None
         userData = self._getCloudConfigUserData('worker', self._masterPublicKey, keyPath, preemptable)

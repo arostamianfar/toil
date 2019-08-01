@@ -95,6 +95,7 @@ class Config(object):
         self.scaleInterval = 60
         self.preemptableCompensation = 0.0
         self.nodeStorage = 50
+        self.nodeStorageOverride = []
         self.metrics = False
 
         # Parameters to limit service jobs, so preventing deadlock scheduling scenarios
@@ -245,6 +246,7 @@ class Config(object):
             raise RuntimeError('preemptableCompensation (%f) must be between 0.0 and 1.0!'
                                '' % self.preemptableCompensation)
         setOption("nodeStorage", int)
+        setOption("nodeStorageOverride", parseStrList)
 
         # Parameters to limit service jobs / detect deadlocks
         setOption("maxServiceJobs", int)
@@ -411,7 +413,9 @@ def _addOptions(addGroupFn, config):
                      "to the cluster. If not provided, the same zone/vpcSubnet as the leader is "
                      "used. If provided, one of the zone/vpcSubnet from this list will randomly "
                      "be chosen at each autoscaler scaling interval.")
-
+    addOptionFn('--nodeStorageOverride', default=None,
+                help="(optional) Comma separated list of nodeShape:nodeStorage that are used to "
+                     "override the default --nodeStorage option for the specified nodeShape(s).")
     addOptionFn('--nodeOptions', default=None,
                 help = "Options for provisioning the nodes. The syntax "
                        "depends on the provisioner used. Neither the CGCloud nor the AWS "
@@ -851,6 +855,7 @@ class Toil(object):
                                                clusterName=None,
                                                zone=None, # read from instance meta-data
                                                nodeStorage=self.config.nodeStorage,
+                                               nodeStorageOverride=self.config.nodeStorageOverride,
                                                sseKey=self.config.sseKey)
             self._provisioner.setAutoscaledNodeTypes(self.config.nodeTypes)
 
