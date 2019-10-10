@@ -957,12 +957,12 @@ class CachingFileStore(AbstractFileStore):
                 jobSpace = self.getSpaceUsableForJobs()
                 if jobSpace < 0:
                     logger.critical('Jobs on this machine have oversubscribed our total available space (%d bytes)!', jobSpace)
-                    raise CacheUnbalancedError
+                    # raise CacheUnbalancedError
                 else:
                     patience -= 1
                     if patience <= 0:
                         logger.critical('Waited implausibly long for active uploads and deletes.')
-                        raise CacheUnbalancedError
+                        # raise CacheUnbalancedError
                     else:
                         # Wait a bit and come back
                         time.sleep(2)
