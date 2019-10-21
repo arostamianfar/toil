@@ -697,7 +697,7 @@ class AWSJobStore(AbstractJobStore):
             # https://github.com/BD2KGenomics/toil/issues/995
             # https://github.com/BD2KGenomics/toil/issues/1093
             return (isinstance(e, (S3CreateError, S3ResponseError))
-                    and e.error_code in ('BucketAlreadyOwnedByYou', 'OperationAborted'))
+                    and e.error_code in ('BucketAlreadyOwnedByYou', 'OperationAborted', 'NoSuchBucket'))
 
         bucketExisted = True
         for attempt in retry_s3(predicate=bucket_creation_pending):
