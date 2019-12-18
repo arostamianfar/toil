@@ -212,10 +212,10 @@ class Leader(object):
                     self.innerLoop()
                 finally:
                     if self.clusterScaler is not None:
-                        logger.debug('Waiting for workers to shutdown.')
+                        logger.error('Waiting for workers to shutdown.')
                         startTime = time.time()
                         self.clusterScaler.shutdown()
-                        logger.debug('Worker shutdown complete in %s seconds.', time.time() - startTime)
+                        logger.error('Worker shutdown complete in %s seconds.', time.time() - startTime)
 
             finally:
                 # Ensure service manager thread is properly shutdown
@@ -556,7 +556,7 @@ class Leader(object):
                 # enough since we last checked. Check for deadlocks.
                 self.checkForDeadlocks()
 
-        logger.debug("Finished the main loop: no jobs left to run.")
+        logger.error("Finished the main loop: no jobs left to run.")
 
         # Consistency check the toil state
         assert self.toilState.updatedJobs == set()

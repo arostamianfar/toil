@@ -757,10 +757,11 @@ class Toil(object):
                             exc_type is None and self.config.clean == "onSuccess" or
                         self.config.clean == "always"):
                 try:
+                    logger.error("Destroying job store....")
                     self._jobStore.destroy()
-                    logger.info("Successfully deleted the job store: %s" % str(self._jobStore))
+                    logger.error("Successfully deleted the job store: %s" % str(self._jobStore))
                 except:
-                    logger.info("Failed to delete the job store: %s" % str(self._jobStore))
+                    logger.error("Failed to delete the job store: %s" % str(self._jobStore))
                     raise
         except Exception as e:
             if exc_type is None:
@@ -1089,9 +1090,9 @@ class Toil(object):
         assert self._batchSystem is not None
 
         startTime = time.time()
-        logger.debug('Shutting down batch system ...')
+        logger.error('Shutting down batch system ...')
         self._batchSystem.shutdown()
-        logger.debug('... finished shutting down the batch system in %s seconds.'
+        logger.error('... finished shutting down the batch system in %s seconds.'
                      % (time.time() - startTime))
 
     def _assertContextManagerUsed(self):

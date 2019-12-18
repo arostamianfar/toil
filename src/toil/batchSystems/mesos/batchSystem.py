@@ -347,12 +347,13 @@ class MesosBatchSystem(BatchSystemLocalSupport,
         return ':'.join(address)
 
     def shutdown(self):
+        log.error("Stopping Local Mesos")
         self.shutdownLocal()
-        log.debug("Stopping Mesos driver")
+        log.error("Stopping Mesos driver")
         self.driver.stop()
-        log.debug("Joining Mesos driver")
+        log.error("Joining Mesos driver")
         driver_result = self.driver.join()
-        log.debug("Joined Mesos driver")
+        log.error("Joined Mesos driver")
         if driver_result is not None and driver_result != 'DRIVER_STOPPED':
             # TODO: The docs say join should return a code, but it keeps returning
             # None when apparently successful. So tolerate that here too.
