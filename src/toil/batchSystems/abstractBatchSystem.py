@@ -37,6 +37,7 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+LOST_JOB_EXIT_STATUS = 25500  # Special (fake) exit code for jobs that are lost due to preemption.
 
 # A class containing the information required for worker cleanup on shutdown of the batch system.
 WorkerCleanupInfo = namedtuple('WorkerCleanupInfo', (
