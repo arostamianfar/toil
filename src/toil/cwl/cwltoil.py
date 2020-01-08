@@ -30,10 +30,8 @@ import logging
 import copy
 import functools
 import shutil
-from typing import Text, Mapping, MutableSequence, MutableMapping
+from typing import Text, Mapping, MutableSequence
 import hashlib
-import uuid
-import datetime
 
 # Python 3 compatibility imports
 from six import iteritems, string_types
@@ -53,7 +51,6 @@ import cwltool.builder
 import cwltool.resolver
 import cwltool.stdfsaccess
 import cwltool.command_line_tool
-import cwltool.provenance
 
 from toil.jobStores.abstractJobStore import NoSuchJobStoreException
 from toil.fileStores import FileID
@@ -156,10 +153,7 @@ class DefaultWithSource(object):
     def resolve(self):
         """Determine the final input value."""
         if self.source:
-            if isinstance(self.source, tuple):
-                result = self.source[1][0][self.source[0]]
-            else:
-                result = self.source[1][self.source[0]]
+            result = self.source[1][self.source[0]]
             if result:
                 return result
         return self.default
@@ -173,21 +167,12 @@ def _resolve_indirect_inner(maybe_idict):
 
     if isinstance(maybe_idict, IndirectDict):
         result = {}
-        metadata = {}
         for key, value in list(maybe_idict.items()):
             if isinstance(value, (MergeInputs, DefaultWithSource)):
                 result[key] = value.resolve()
             else:
-                if isinstance(value[1], tuple):
-                    if isinstance(value[1][0], tuple):
-                        result[key] = value[1][0][0].get(value[0])
-                        metadata[key] = value[1][0][1]
-                    else:
-                        result[key] = value[1][0].get(value[0])
-                        metadata[key] = value[1][1]
-                else:
-                    result[key] = value[1].get(value[0])
-        return result, metadata
+                result[key] = value[1].get(value[0])
+        return result
     return maybe_idict
 
 
@@ -198,9 +183,6 @@ def resolve_indirect(pdict):
 
     inner = IndirectDict() if isinstance(pdict, IndirectDict) else {}
     needs_eval = False
-    if isinstance(pdict, tuple):
-        #TODO should this return metadata
-        return resolve_indirect(pdict[0])
     for k, value in iteritems(pdict):
         if isinstance(value, StepValueFrom):
             inner[k] = value.inner
@@ -210,21 +192,12 @@ def resolve_indirect(pdict):
     res = _resolve_indirect_inner(inner)
     if needs_eval:
         ev = {}
-        metadata = {}
         for k, value in iteritems(pdict):
             if isinstance(value, StepValueFrom):
-                if isinstance(res, tuple):
-                    ev[k] = value.do_eval(res[0], res[0][k])
-                    metadata[k] = res[1]
-                else:
-                    ev[k] = value.do_eval(res, res[k])
+                ev[k] = value.do_eval(res, res[k])
             else:
-                if isinstance(res, tuple):
-                    ev[k] = res[0][k]
-                    metadata[k] = res[1]
-                else:
-                    ev[k] = res[k]
-        return ev, metadata
+                ev[k] = res[k]
+        return ev
     return res
 
 
@@ -434,7 +407,7 @@ def toilStageFiles(file_store, cwljob, outdir, index, existing, export,
     jobfiles = list(_collectDirEntries(cwljob))
     pm = ToilPathMapper(
         jobfiles, "", outdir, separateDirs=False, stage_listing=True)
-    for _, p in pm.items():
+    for f, p in pm.items():
         if not p.staged:
             continue
 
@@ -487,21 +460,14 @@ class CWLJobWrapper(Job):
         self.runtime_context = runtime_context
 
     def run(self, file_store):
-        resolved_cwljob = resolve_indirect(self.cwljob)
-        metadata = {}
-        if isinstance(resolved_cwljob, tuple):
-            cwljob = resolved_cwljob[0]
-            metadata = resolved_cwljob[1]
-        else:
-            cwljob = resolved_cwljob
+        cwljob = resolve_indirect(self.cwljob)
         fill_in_defaults(
             self.cwltool.tool['inputs'], cwljob,
             self.runtime_context.make_fs_access(
                 self.runtime_context.basedir or ""))
         realjob = CWLJob(self.cwltool, cwljob, self.runtime_context)
         self.addChild(realjob)
-        return realjob.rv(), metadata
-
+        return realjob.rv()
 
 class CWLJob(Job):
     """Execute a CWL tool using cwltool.executors.SingleJobExecutor"""
@@ -563,12 +529,7 @@ class CWLJob(Job):
         self.workdir = runtime_context.workdir
 
     def run(self, file_store):
-        resolved_cwljob = resolve_indirect(self.cwljob)
-        if isinstance(resolved_cwljob, tuple):
-            cwljob, metadata = resolved_cwljob
-        else:
-            cwljob = resolved_cwljob
-            metadata = {}
+        cwljob = resolve_indirect(self.cwljob)
         fill_in_defaults(
             self.step_inputs, cwljob,
             self.runtime_context.make_fs_access(""))
@@ -607,13 +568,9 @@ class CWLJob(Job):
             ToilFsAccess, file_store=file_store)
         runtime_context.toil_get_file = functools.partial(
             toil_get_file, file_store, index, existing)
-
-        process_uuid = uuid.uuid4()
-        started_at = datetime.datetime.now()
         # Run the tool
         (output, status) = cwltool.executors.SingleJobExecutor().execute(
             self.cwltool, cwljob, runtime_context, cwllogger)
-        ended_at = datetime.datetime.now()
         if status != "success":
             raise cwltool.errors.WorkflowException(status)
 
@@ -625,15 +582,7 @@ class CWLJob(Job):
             uploadFile, functools.partial(writeGlobalFileWrapper, file_store),
             index, existing))
 
-        metadata[process_uuid] = {
-            'started_at': started_at,
-            'ended_at': ended_at,
-            'job_order': cwljob,
-            'outputs': output,
-            'internal_name': self.jobName
-        }
-        return output, metadata
-
+        return output
 
 def makeJob(tool, jobobj, step_inputs, runtime_context):
     """Create the correct Toil Job object for the CWL tool (workflow, job, or job
@@ -710,11 +659,7 @@ class CWLScatter(Job):
         return outputs
 
     def run(self, file_store):
-        resolved_cwljob = resolve_indirect(self.cwljob)
-        if isinstance(resolved_cwljob, tuple):
-            cwljob, metadata = resolved_cwljob
-        else:
-            cwljob = resolved_cwljob
+        cwljob = resolve_indirect(self.cwljob)
 
         if isinstance(self.step.tool["scatter"], string_types):
             scatter = [self.step.tool["scatter"]]
@@ -737,8 +682,8 @@ class CWLScatter(Job):
             def valueFromFunc(k, v):
                 if k in valueFrom:
                     return cwltool.expression.do_eval(
-                        valueFrom[k], shortio, self.step.requirements,
-                        None, None, {}, context=v)
+                            valueFrom[k], shortio, self.step.requirements,
+                            None, None, {}, context=v)
                 else:
                     return v
             return {k: valueFromFunc(k, v) for k, v in list(io.items())}
@@ -769,7 +714,7 @@ class CWLScatter(Job):
                     "Must provide scatterMethod to scatter over multiple"
                     " inputs.")
 
-        return outputs, metadata
+        return outputs
 
 
 class CWLGather(Job):
@@ -796,27 +741,14 @@ class CWLGather(Job):
             return obj.get(k)
         elif isinstance(obj, MutableSequence):
             cp = []
-            metadata = []
             for l in obj:
-                if isinstance(l, tuple):
-                    cp.append(self.extract(l[0], k))
-                    metadata.append(self.extract(l[1], k))
-                else:
-                    result = self.extract(l, k)
-                    if isinstance(result, tuple):
-                        cp.append(result[0])
-                        metadata.append(result[1])
-                    else:
-                        cp.append(result)
-            return cp, metadata
-        elif isinstance(obj, tuple):
-            return self.extract(obj[0], k)
+                cp.append(self.extract(l, k))
+            return cp
         else:
             return []
 
     def run(self, file_store):
         outobj = {}
-        metadata = {}
 
         def sn(n):
             if isinstance(n, Mapping):
@@ -825,12 +757,9 @@ class CWLGather(Job):
                 return shortname(n)
 
         for k in [sn(i) for i in self.step.tool["out"]]:
-            result = self.extract(self.outputs, k)
-            if isinstance(result, tuple):
-                outobj[k], metadata[k] = result
-            else:
-                outobj[k] = result
-        return outobj, metadata
+            outobj[k] = self.extract(self.outputs, k)
+
+        return outobj
 
 
 class SelfJob(object):
@@ -861,19 +790,6 @@ def remove_pickle_problems(obj):
     if hasattr(obj, "steps"):
         obj.steps = [remove_pickle_problems(s) for s in obj.steps]
     return obj
-
-
-def _link_merge_source(promises, in_out_obj, source_obj):
-    to_merge = [(shortname(s), promises[s].rv()) for s in aslist(source_obj)]
-    link_merge = in_out_obj.get("linkMerge", "merge_nested")
-    if link_merge == "merge_nested":
-        merged = MergeInputsNested(to_merge)
-    elif link_merge == "merge_flattened":
-        merged = MergeInputsFlattened(to_merge)
-    else:
-        raise validate.ValidationException(
-            "Unsupported linkMerge '%s'" % link_merge)
-    return merged
 
 
 class CWLWorkflow(Job):
@@ -909,7 +825,7 @@ class CWLWorkflow(Job):
         while not alloutputs_fufilled:
             # Iteratively go over the workflow steps, scheduling jobs as their
             # dependencies can be fufilled by upstream workflow inputs or
-            # step outputs. Loop exits when the workflow outputs
+            # step outputs.  Loop exits when the workflow outputs
             # are satisfied.
 
             alloutputs_fufilled = True
@@ -928,12 +844,30 @@ class CWLWorkflow(Job):
                         for inp in step.tool["inputs"]:
                             key = shortname(inp["id"])
                             if "source" in inp:
-                                inpSource = inp["source"]
                                 if inp.get("linkMerge") \
                                         or len(aslist(inp["source"])) > 1:
-                                    jobobj[key] =\
-                                        _link_merge_source(promises, inp, inpSource)
+                                    linkMerge = inp.get(
+                                        "linkMerge", "merge_nested")
+                                    if linkMerge == "merge_nested":
+                                        jobobj[key] = (
+                                            MergeInputsNested(
+                                                [(shortname(s),
+                                                  promises[s].rv())
+                                                 for s in aslist(
+                                                     inp["source"])]))
+                                    elif linkMerge == "merge_flattened":
+                                        jobobj[key] = (
+                                            MergeInputsFlattened(
+                                                [(shortname(s),
+                                                  promises[s].rv())
+                                                 for s in aslist(
+                                                      inp["source"])]))
+                                    else:
+                                        raise validate.ValidationException(
+                                            "Unsupported linkMerge '%s'" %
+                                            linkMerge)
                                 else:
+                                    inpSource = inp["source"]
                                     if isinstance(inpSource, MutableSequence):
                                         # It seems that an input source with a
                                         # '#' in the name will be returned as a
@@ -989,12 +923,14 @@ class CWLWorkflow(Job):
                             for s in aslist(inp.get("source", [])):
                                 if (isinstance(
                                         promises[s], (CWLJobWrapper, CWLGather)
-                                ) and not promises[s].hasFollowOn(wfjob)):
+                                              ) and
+                                        not promises[s].hasFollowOn(wfjob)):
                                     promises[s].addFollowOn(wfjob)
                                     connected = True
                                 if (not isinstance(
                                         promises[s], (CWLJobWrapper, CWLGather)
-                                ) and not promises[s].hasChild(wfjob)):
+                                                  ) and
+                                        not promises[s].hasChild(wfjob)):
                                     promises[s].addChild(wfjob)
                                     connected = True
                         if not connected:
@@ -1021,7 +957,21 @@ class CWLWorkflow(Job):
         for out in self.cwlwf.tool["outputs"]:
             key = shortname(out["id"])
             if out.get("linkMerge") or len(aslist(out["outputSource"])) > 1:
-                outobj[key] = _link_merge_source(promises, out, out["outputSource"])
+                link_merge = out.get("linkMerge", "merge_nested")
+                if link_merge == "merge_nested":
+                    outobj[key] = (
+                        MergeInputsNested(
+                            [(shortname(s), promises[s].rv())
+                             for s in aslist(out["outputSource"])]))
+                elif link_merge == "merge_flattened":
+                    outobj[key] = (
+                        MergeInputsFlattened([
+                            (shortname(s), promises[s].rv())
+                            for s in aslist(out["source"])]))
+                else:
+                    raise validate.ValidationException(
+                        "Unsupported linkMerge '{}'".format(link_merge))
+
             else:
                 # A CommentedSeq of length one still appears here rarely -
                 # not clear why from the CWL code. When it does, it breaks
@@ -1140,43 +1090,6 @@ def main(args=None, stdout=sys.stdout):
     if args is None:
         args = sys.argv[1:]
 
-    provgroup = parser.add_argument_group("Options for recording provenance "
-                                          "information of the execution")
-    provgroup.add_argument("--provenance",
-                           help="Save provenance to specified folder as a "
-                           "Research Object that captures and aggregates "
-                           "workflow execution and data products.",
-                           type=Text)
-
-    provgroup.add_argument("--enable-user-provenance", default=False,
-                           action="store_true",
-                           help="Record user account info as part of provenance.",
-                           dest="user_provenance")
-    provgroup.add_argument("--disable-user-provenance", default=False,
-                           action="store_false",
-                           help="Do not record user account info in provenance.",
-                           dest="user_provenance")
-    provgroup.add_argument("--enable-host-provenance", default=False,
-                           action="store_true",
-                           help="Record host info as part of provenance.",
-                           dest="host_provenance")
-    provgroup.add_argument("--disable-host-provenance", default=False,
-                           action="store_false",
-                           help="Do not record host info in provenance.",
-                           dest="host_provenance")
-    provgroup.add_argument(
-        "--orcid", help="Record user ORCID identifier as part of "
-        "provenance, e.g. https://orcid.org/0000-0002-1825-0097 "
-        "or 0000-0002-1825-0097. Alternatively the environment variable "
-        "ORCID may be set.", dest="orcid", default=os.environ.get("ORCID", ''),
-        type=Text)
-    provgroup.add_argument(
-        "--full-name", help="Record full name of user as part of provenance, "
-        "e.g. Josiah Carberry. You may need to use shell quotes to preserve "
-        "spaces. Alternatively the environment variable CWL_FULL_NAME may "
-        "be set.", dest="cwl_full_name", default=os.environ.get("CWL_FULL_NAME", ''),
-        type=Text)
-
     # Problem: we want to keep our job store somewhere auto-generated based on
     # our options, unless overridden by... an option. So we will need to parse
     # options twice, because we need to feed the parser the job store.
@@ -1211,8 +1124,7 @@ def main(args=None, stdout=sys.stdout):
 
     if options.provisioner and not options.jobStore:
         raise NoSuchJobStoreException(
-            'Please specify a jobstore with the --jobStore option when '
-            'specifying a provisioner.')
+            'Please specify a jobstore with the --jobStore option when specifying a provisioner.')
 
     use_container = not options.no_container
 
@@ -1241,13 +1153,6 @@ def main(args=None, stdout=sys.stdout):
     runtime_context.rm_tmpdir = False
     loading_context = cwltool.context.LoadingContext(vars(options))
 
-    if options.provenance:
-        research_obj = cwltool.provenance.ResearchObject(
-            temp_prefix_ro=options.tmp_outdir_prefix, orcid=options.orcid,
-            full_name=options.cwl_full_name,
-            fsaccess=runtime_context.make_fs_access(''))
-        runtime_context.research_obj = research_obj
-
     with Toil(options) as toil:
         if options.restart:
             outobj = toil.restart()
@@ -1273,24 +1178,9 @@ def main(args=None, stdout=sys.stdout):
                 cwltool.main.load_job_order(
                     options, sys.stdin, loading_context.fetcher_constructor,
                     loading_context.overrides_list, tool_file_uri)
-
             loading_context, workflowobj, uri = cwltool.load_tool.fetch_document(uri, loading_context)
             loading_context, uri = cwltool.load_tool.resolve_and_validate_document(loading_context, workflowobj, uri)
             loading_context.overrides_list.extend(loading_context.metadata.get("cwltool:overrides", []))
-
-            document_loader = loading_context.loader
-            metadata = loading_context.metadata
-            processobj = document_loader.idx
-
-            if options.provenance and runtime_context.research_obj:
-                processobj['id'] = metadata['id']
-                processobj, metadata = loading_context.loader.resolve_ref(uri)
-                runtime_context.research_obj.packed_workflow(
-                    cwltool.main.print_pack(document_loader, processobj, uri, metadata))
-
-            loading_context.overrides_list.extend(
-                metadata.get("cwltool:overrides", []))
-
             try:
                 tool = cwltool.load_tool.make_tool(uri, loading_context)
             except cwltool.process.UnsupportedRequirement as err:
@@ -1354,16 +1244,9 @@ def main(args=None, stdout=sys.stdout):
                 return 33
 
             wf1.cwljob = initialized_job_order
-
-            result = toil.start(wf1)
-            if isinstance(result, tuple):
-                outobj, metadata = result
-            else:
-                outobj = result
+            outobj = toil.start(wf1)
 
         outobj = resolve_indirect(outobj)
-        if isinstance(outobj, tuple):
-            outobj, metadata = outobj
 
         # Stage files. Specify destination bucket if specified in CLI
         # options. If destination bucket not passed in,
@@ -1376,29 +1259,6 @@ def main(args=None, stdout=sys.stdout):
             existing,
             export=True,
             destBucket=options.destBucket)
-
-        if runtime_context.research_obj is not None:
-            runtime_context.research_obj.create_job(outobj, None, True)
-
-            def remove_at_id(doc):
-                if isinstance(doc, MutableMapping):
-                    for key in list(doc.keys()):
-                        if key == '@id':
-                            del doc[key]
-                        else:
-                            value = doc[key]
-                            if isinstance(value, MutableMapping):
-                                remove_at_id(value)
-                            if isinstance(value, MutableSequence):
-                                for entry in value:
-                                    if isinstance(value, MutableMapping):
-                                        remove_at_id(entry)
-            remove_at_id(outobj)
-            visit_class(outobj, ("File",), functools.partial(
-                add_sizes, runtime_context.make_fs_access('')))
-            prov_dependencies = cwltool.main.prov_deps(workflowobj, document_loader, uri)
-            runtime_context.research_obj.generate_snapshot(prov_dependencies)
-            runtime_context.research_obj.close(options.provenance)
 
         if not options.destBucket:
             visit_class(outobj, ("File",), functools.partial(
