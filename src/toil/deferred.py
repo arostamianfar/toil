@@ -291,8 +291,6 @@ class DeferredFunctionManager(object):
                     # So skip it.
                     continue
 
-                logger.debug("Try file %s" % fullFilename)
-
                 fd = None
 
                 try:
